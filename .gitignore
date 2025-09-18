@@ -1,0 +1,11 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore environment file
+.env
+
+nlp_vectorstore/
+
+# Ignore virtual environment folder if you have one
+venv/
