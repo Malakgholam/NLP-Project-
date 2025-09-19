@@ -19,7 +19,7 @@ from metric import compute_exact_match, compute_f1
 from sentence_transformers import SentenceTransformer, util
 
 load_dotenv()
-api_key = os.getenv("API_KEY_2")
+api_key = os.getenv("API_KEY_3")
 genai.configure(api_key=api_key)
 
 llm_model = genai.GenerativeModel("gemini-1.5-flash-8b-latest")
@@ -46,7 +46,6 @@ rag_prompt = PromptTemplate(
         "### Context:\n{context}\n\n"
         "### Question:\n{question}\n\n"
         "### Detailed Answer:"
-
     )
 )
 
@@ -79,7 +78,7 @@ summarization_prompt = PromptTemplate(
 
 class GeminiLLM(LLM):
     model: Any = None  # The GenerativeModel instance
-
+   # temperature: float = 0.7
     def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
         response = self.model.generate_content(prompt)
         return response.text
@@ -126,117 +125,124 @@ def ask_question(query):
     answer = result["answer"]
     sources = result["source_documents"]
 
+    # Collect page numbers from sources
+    page_numbers = []
+    for doc in sources:
+        if "page" in doc.metadata:
+            page_numbers.append(doc.metadata["page"] + 1)  # +1 to make it human-readable (pages start at 1)
+
     # Step 3: If summarization is requested → summarize retrieved docs
     summary = None
     if "yes" in intent:
         retrieved_text = "\n\n".join([doc.page_content for doc in sources])
         summary = summarization_chain.run({"context": retrieved_text}).strip()
 
-    return answer,summary
-
-semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-def compute_semantic_similarity(prediction: str, ground_truth: str) -> float:
-    """
-    Compute semantic similarity between prediction and ground truth using embeddings.
-    Returns a value between 0 (no match) and 1 (perfect semantic match).
-    """
-    if not prediction or not ground_truth:
-        return 0.0
-    embeddings = semantic_model.encode([prediction, ground_truth], convert_to_tensor=True)
-    similarity = util.cos_sim(embeddings[0], embeddings[1])
-    return similarity.item()
+    return answer, summary, page_numbers
 
 
-# Example evaluation
-evaluation_data = [
+# semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# def compute_semantic_similarity(prediction: str, ground_truth: str) -> float:
+#     """
+#     Compute semantic similarity between prediction and ground truth using embeddings.
+#     Returns a value between 0 (no match) and 1 (perfect semantic match).
+#     """
+#     if not prediction or not ground_truth:
+#         return 0.0
+#     embeddings = semantic_model.encode([prediction, ground_truth], convert_to_tensor=True)
+#     similarity = util.cos_sim(embeddings[0], embeddings[1])
+#     return similarity.item()
+
+
+# # Example evaluation
+# evaluation_data = [
   
-    {
-    "question": "What is LSTM?",
-    "ground_truth": "LSTM (Long Short-Term Memory) is a special type of Recurrent Neural Network (RNN) architecture designed to learn long-term dependencies in sequential data. Proposed by Hochreiter & Schmidhuber (1997). Unlike vanilla RNNs, it has an internal memory (cell state) that can carry information across many time steps. It uses gates (forget, input, output) to control the flow of information."
-    },
+#     {
+#     "question": "What is LSTM?",
+#     "ground_truth": "LSTM (Long Short-Term Memory) is a special type of Recurrent Neural Network (RNN) architecture designed to learn long-term dependencies in sequential data. Proposed by Hochreiter & Schmidhuber (1997). Unlike vanilla RNNs, it has an internal memory (cell state) that can carry information across many time steps. It uses gates (forget, input, output) to control the flow of information."
+#     },
 
-    {
-        "question": "Advantages of LSTM?",
-        "ground_truth": """1. Solves the Vanishing Gradient Problem
-            •Can preserve information over long sequences.
-            •Unlike vanilla RNNs, LSTM doesn’t “forget” quickly.
-            2. Captures Long-Term Dependencies
-            •Keeps track of context across many time steps.
-            •Useful in tasks where earlier input influences much later output (e.g., machine translation).
-            3. Selective Memory with Gates
-            •Forget, input, and output gates act as filters.
-            •The network decides what to keep, update, or discard.
-            4. Better Accuracy in Sequence Tasks
-            •Proven to outperform vanilla RNNs in NLP, speech recognition, and time-series 
-            forecasting.
-            5. Flexible for Different Data Types
-            •Works with text, speech, video, stock prices, sensor data, etc.
-            6. Well-Researched & Widely Used
-            •Huge community support, tutorials, and pre-trained models available.""" 
-    },
-    {
-        "question": "What is GRU?",
-        "ground_truth": """•GRU is a gated architecture like LSTM.
-            •It controls information flow with fewer gates.
-            •Unlike LSTM, it has no separate cell state → only 
-            maintains a hidden state.
-            GRU was designed to:
-            • Be faster and simpler than LSTM
-            • Use fewer gates (only 2 instead of 3)
-            • Have fewer parameters, which helps it train quicker
-            GRU Has Two Gates:
-            ➢ Update Gate
-            ➢ Reset Gate"""
-    },
-    {
-                    "question": "When to choose GRU over LSTM ?",
-                    "ground_truth": """1. When speed matters
-            •GRUs are faster to train )fewer gates → fewer parameters).
-            •Better for real-time applications like chatbots or online 
-            recommendation.
-            2. When resources are limited
-            •GRUs use less memory & computation.
-            •Good for mobile/embedded devices or when using smaller GPUs.
-            3. When data is small or moderate
-            •GRUs have lower risk of overfitting due to simpler architecture.
-            •More suitable for tasks with limited training data.
-            4. When sequences are not very long
-            •For short/medium sequences, GRUs perform as well as LSTMs, but 
-            more efficiently.
-            5. When experimenting quickly
-            •Faster training allows rapid prototyping and trying different 
-            architectures"""
-    },
+#     {
+#         "question": "Advantages of LSTM?",
+#         "ground_truth": """1. Solves the Vanishing Gradient Problem
+#             •Can preserve information over long sequences.
+#             •Unlike vanilla RNNs, LSTM doesn’t “forget” quickly.
+#             2. Captures Long-Term Dependencies
+#             •Keeps track of context across many time steps.
+#             •Useful in tasks where earlier input influences much later output (e.g., machine translation).
+#             3. Selective Memory with Gates
+#             •Forget, input, and output gates act as filters.
+#             •The network decides what to keep, update, or discard.
+#             4. Better Accuracy in Sequence Tasks
+#             •Proven to outperform vanilla RNNs in NLP, speech recognition, and time-series 
+#             forecasting.
+#             5. Flexible for Different Data Types
+#             •Works with text, speech, video, stock prices, sensor data, etc.
+#             6. Well-Researched & Widely Used
+#             •Huge community support, tutorials, and pre-trained models available.""" 
+#     },
+#     {
+#         "question": "What is GRU?",
+#         "ground_truth": """•GRU is a gated architecture like LSTM.
+#             •It controls information flow with fewer gates.
+#             •Unlike LSTM, it has no separate cell state → only 
+#             maintains a hidden state.
+#             GRU was designed to:
+#             • Be faster and simpler than LSTM
+#             • Use fewer gates (only 2 instead of 3)
+#             • Have fewer parameters, which helps it train quicker
+#             GRU Has Two Gates:
+#             ➢ Update Gate
+#             ➢ Reset Gate"""
+#     },
+#     {
+#                     "question": "When to choose GRU over LSTM ?",
+#                     "ground_truth": """1. When speed matters
+#             •GRUs are faster to train )fewer gates → fewer parameters).
+#             •Better for real-time applications like chatbots or online 
+#             recommendation.
+#             2. When resources are limited
+#             •GRUs use less memory & computation.
+#             •Good for mobile/embedded devices or when using smaller GPUs.
+#             3. When data is small or moderate
+#             •GRUs have lower risk of overfitting due to simpler architecture.
+#             •More suitable for tasks with limited training data.
+#             4. When sequences are not very long
+#             •For short/medium sequences, GRUs perform as well as LSTMs, but 
+#             more efficiently.
+#             5. When experimenting quickly
+#             •Faster training allows rapid prototyping and trying different 
+#             architectures"""
+#     },
 
-   {
-                "question": "How OCR Works?",
-                "ground_truth": """• Image Acquisition
-            Input can be scanned documents, photos, or PDFs
-            • Preprocessing
-            Noise reduction, binarization, resizing, deskewing
-            Improves image quality for better recognition
-            • Text Detection (Segmentation)
-            Locates regions in the image that contain text
-            Segments lines, words, and individual characters
-            • Character Recognition
-            Uses pattern matching or ML models to identify characters
-            Converts visual symbols into digital characters (A-Z, 0-9, etc.)
-            • Postprocessing
-            Spell check, error correction, language modeling
-            Formats the recognized text into structured output
-            • Output Generation
-            Text is saved in formats like TXT, DOCX, or searchable PDFs"""
-    },
-]
+#    {
+#                 "question": "How OCR Works?",
+#                 "ground_truth": """• Image Acquisition
+#             Input can be scanned documents, photos, or PDFs
+#             • Preprocessing
+#             Noise reduction, binarization, resizing, deskewing
+#             Improves image quality for better recognition
+#             • Text Detection (Segmentation)
+#             Locates regions in the image that contain text
+#             Segments lines, words, and individual characters
+#             • Character Recognition
+#             Uses pattern matching or ML models to identify characters
+#             Converts visual symbols into digital characters (A-Z, 0-9, etc.)
+#             • Postprocessing
+#             Spell check, error correction, language modeling
+#             Formats the recognized text into structured output
+#             • Output Generation
+#             Text is saved in formats like TXT, DOCX, or searchable PDFs"""
+#     },
+# ]
 
-similarity_scores = []
+# similarity_scores = []
 
-for sample in evaluation_data:
-    answer, _ = ask_question(sample["question"])
-    score = compute_semantic_similarity(answer, sample["ground_truth"])
-    similarity_scores.append(score)
+# for sample in evaluation_data:
+#     answer, _ = ask_question(sample["question"])
+#     score = compute_semantic_similarity(answer, sample["ground_truth"])
+#     similarity_scores.append(score)
 
-# Print average similarity
-average_similarity = sum(similarity_scores) / len(similarity_scores)
-print(f"🔎 Average Semantic Similarity Score: {average_similarity:.2f}")
+# # Print average similarity
+# average_similarity = sum(similarity_scores) / len(similarity_scores)
+# print(f"🔎 Average Semantic Similarity Score: {average_similarity:.2f}")

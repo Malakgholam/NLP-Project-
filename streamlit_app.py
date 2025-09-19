@@ -25,17 +25,21 @@ query = st.text_input("💬 Enter your question:", key="user_input")
 
 if st.button("Ask") and query.strip():
     with st.spinner("Thinking..."):
-        answer, summary = ask_question(query)
+        answer, summary, pages = ask_question(query)
 
     # Append user message
     st.session_state.chat_history.append({"role": "user", "content": query})
 
     # Append bot response
     if summary:
-        st.session_state.chat_history.append({"role": "bot", "content": f" 📝 Summary\n{summary}"})
+        response_text = f"📝 **Summary**\n{summary}"
     else:
-        st.session_state.chat_history.append({"role": "bot", "content": f" ✅ Answer\n{answer}"})
+        response_text = f"✅ **Answer**\n{answer}"
 
-    # Rerun to update chat window dynamically
+    # Add page numbers if available
+    if pages:
+        response_text += f"\n\n📄 **Source Pages:** {', '.join(map(str, pages))}"
+
+    st.session_state.chat_history.append({"role": "bot", "content": response_text})
+
     st.rerun()
-
